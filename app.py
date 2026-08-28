@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from groq_insights import GroqError, generate_place_brief
+from groq_insights import GroqError, answer_noise_chat, generate_place_brief
 from google_calendar import (
     GoogleCalendarError,
     authenticate_google_calendar,
@@ -415,6 +415,19 @@ def api_ai_place(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@app.post("/api/ai/chat")
+def api_ai_chat(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Short Groq answers about usual dB and whether to visit a listed place."""
+    question = payload.get("message") or payload.get("question")
+    stations = payload.get("stations") if isinstance(payload.get("stations"), list) else []
+    history = payload.get("history") if isinstance(payload.get("history"), list) else []
+    selected = payload.get("selected") if isinstance(payload.get("selected"), dict) else None
+    try:
+        return answer_noise_chat(str(question or ""), stations, history, selected)
+    except GroqError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 def _fetch_hourly_points(serial: str, start: date, end: date) -> list[dict[str, Any]]:
     start_unix, end_unix = local_date_to_unix_range(start.isoformat(), end.isoformat())
     catalog = {m["serial_number"]: m for m in _catalog_monitors()}
@@ -523,7 +536,15 @@ def calendar_analyze(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
 
 @app.get("/")
-def index() -> FileResponse:
+def landing() -> FileResponse:
+    return FileResponse(
+        FRONTEND / "landing.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/app")
+def dashboard() -> FileResponse:
     return FileResponse(FRONTEND / "index.html")
 
 

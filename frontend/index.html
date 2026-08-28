@@ -6,18 +6,16 @@
   <title>Sonitus — Dublin Noise Intelligence</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,650;1,9..144,500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="/assets/styles.css" />
 </head>
 <body>
-  <div class="grain" aria-hidden="true"></div>
-
   <div class="shell">
     <aside class="sidenav">
       <div class="sidenav-brand">
-        <p class="eyebrow">Sonitus</p>
-        <strong>Dublin noise</strong>
+        <a href="/" class="sidenav-home"><strong>Sonitus</strong></a>
+        <p class="sidenav-sub">Dublin noise</p>
       </div>
       <nav class="tabs" aria-label="Dashboard">
         <p class="nav-label">Observe</p>
@@ -25,10 +23,11 @@
         <p class="nav-label">Intelligence</p>
         <button type="button" class="tab-btn" data-tab="forecast"><span>02</span> Noise forecast</button>
         <button type="button" class="tab-btn" data-tab="anomalies"><span>03</span> Hotspots</button>
-        <button type="button" class="tab-btn" data-tab="insights"><span>04</span> AI insights</button>
-        <button type="button" class="tab-btn" data-tab="calendar"><span>05</span> Upcoming</button>
+        <button type="button" class="tab-btn" data-tab="chat"><span>04</span> Ask</button>
+        <button type="button" class="tab-btn" data-tab="insights"><span>05</span> AI insights</button>
+        <button type="button" class="tab-btn" data-tab="calendar"><span>06</span> Upcoming</button>
         <p class="nav-label">Source</p>
-        <button type="button" class="tab-btn" data-tab="method"><span>06</span> Data methodology</button>
+        <button type="button" class="tab-btn" data-tab="method"><span>07</span> Data methodology</button>
       </nav>
       <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false">Dark mode</button>
     </aside>
@@ -45,12 +44,33 @@
             <h1>The city, in decibels.</h1>
             <p class="lede mast-lede">Pick a pin to hear the street in numbers — quieter greens, louder reds. The scale on the right is a reading aid, not a legal limit.</p>
           </div>
+          <div class="wave" aria-hidden="true">
+            <svg viewBox="0 0 240 72" preserveAspectRatio="none">
+              <path class="wave-a" d="M0 36 Q 20 18 40 36 T 80 36 T 120 22 T 160 36 T 200 48 T 240 36" fill="none" stroke-width="1.5">
+                <animate attributeName="d" dur="1.8s" repeatCount="indefinite" values="
+                  M0 36 Q 20 18 40 36 T 80 36 T 120 22 T 160 36 T 200 48 T 240 36;
+                  M0 36 Q 20 50 40 36 T 80 20 T 120 36 T 160 52 T 200 28 T 240 36;
+                  M0 36 Q 20 18 40 36 T 80 36 T 120 22 T 160 36 T 200 48 T 240 36"/>
+              </path>
+              <path class="wave-b" d="M0 36 Q 20 44 40 36 T 80 48 T 120 36 T 160 24 T 200 36 T 240 36" fill="none" stroke-width="1.25">
+                <animate attributeName="d" dur="2.4s" repeatCount="indefinite" values="
+                  M0 36 Q 20 44 40 36 T 80 48 T 120 36 T 160 24 T 200 36 T 240 36;
+                  M0 36 Q 20 28 40 36 T 80 24 T 120 36 T 160 44 T 200 36 T 240 36;
+                  M0 36 Q 20 44 40 36 T 80 48 T 120 36 T 160 24 T 200 36 T 240 36"/>
+              </path>
+            </svg>
+          </div>
           <aside class="db-guide" aria-label="How to read decibels">
             <p class="eyebrow">How to read the numbers</p>
+            <div class="db-meter" aria-hidden="true">
+              <div class="seg low"><strong>20–60</strong> low</div>
+              <div class="seg mid"><strong>60–80</strong> mid</div>
+              <div class="seg high"><strong>80+</strong> high</div>
+            </div>
             <ul>
-              <li><span class="swatch low" aria-hidden="true"></span><span><strong>20–60 dB</strong> Low — quiet room to easy conversation</span></li>
-              <li><span class="swatch mid" aria-hidden="true"></span><span><strong>60–80 dB</strong> Medium — busy street, you’ll notice it</span></li>
-              <li><span class="swatch high" aria-hidden="true"></span><span><strong>80 dB+</strong> High — loud; fine for a short visit</span></li>
+              <li><span class="swatch low" aria-hidden="true"></span><span>Quiet room to easy conversation</span></li>
+              <li><span class="swatch mid" aria-hidden="true"></span><span>Busy street — you’ll notice it</span></li>
+              <li><span class="swatch high" aria-hidden="true"></span><span>Loud; fine for a short visit</span></li>
             </ul>
             <p class="db-guide-note">A reading aid, not a legal limit.</p>
           </aside>
@@ -132,7 +152,7 @@
 
       <section class="panel" id="tab-forecast">
         <header class="panel-head">
-          <p class="eyebrow">🔮 Noise forecast</p>
+          <p class="eyebrow">Noise forecast</p>
           <h2>When it’s likely to become noisy.</h2>
           <p class="lede">Not a promise of tomorrow’s exact decibels. These windows are when Dublin’s monitors have recently been louder at this time of day — a usual pattern, shown instantly.</p>
         </header>
@@ -150,6 +170,30 @@
           <p>Usual-week pattern for Dublin noise stations.</p>
         </div>
         <div class="feed" id="anomaly-feed"></div>
+      </section>
+
+      <section class="panel" id="tab-chat">
+        <header class="panel-head">
+          <p class="eyebrow">Ask</p>
+          <h2>How loud is it, and should I go?</h2>
+          <p class="lede">Ask about a Dublin monitor — usual decibels, whether it’s a good time to visit, or what to do if it’s loud. Answers use the station list on this dashboard, not a live pull of tomorrow.</p>
+        </header>
+        <div class="chat-shell">
+          <form class="chat-form" id="chat-form">
+            <label class="chat-label" for="chat-input">Type a place or a question</label>
+            <div class="chat-compose">
+              <input id="chat-input" type="text" maxlength="400" placeholder="e.g. How many dB is Strand Road? Should I go?" autocomplete="off" />
+              <button type="submit" class="route-btn" id="chat-send">Ask Groq</button>
+            </div>
+          </form>
+          <p class="chat-hint">Or tap one of these:</p>
+          <div class="chat-prompts" id="chat-prompts">
+            <button type="button" data-q="How loud is Strand Road usually?">How loud is Strand Road?</button>
+            <button type="button" data-q="Should I go to Bull Island in the morning?">Should I go to Bull Island?</button>
+            <button type="button" data-q="Where is usually quieter, Raheny or Chancery Park?">Raheny or Chancery Park?</button>
+          </div>
+          <div class="chat-log" id="chat-log"></div>
+        </div>
       </section>
 
       <section class="panel" id="tab-insights">
@@ -206,7 +250,7 @@
           </article>
           <article class="method-card">
             <h3>Groq</h3>
-            <p>When you pick a place, the five-minute series is grouped into hours (Europe/Dublin). Groq only sees those hourly averages and writes: noisiest hours, and a calmer time to go. It does not use map colours.</p>
+            <p>When you pick a loud place, Groq writes quieter hours and short mitigation steps. The Ask page is a chat: you can question usual decibels and whether to go. Groq only sees the station list and typical dB we send it — not map colours, and not a promise of tomorrow.</p>
           </article>
           <article class="method-card">
             <h3>Forecast</h3>

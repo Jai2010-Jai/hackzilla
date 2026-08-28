@@ -179,6 +179,7 @@ function stationRow(station) {
     <span>
       <span class="station-name">${station.label}</span>
         <span class="station-loc">${station.location}${station.kind && station.kind !== "noise" ? ` · ${station.kind}` : ""}</span>
+        ${placeIsVeryLoud(mean) ? mitigationMarkup(station.location) : ""}
     </span>
     <span class="station-db">${mean == null ? "—" : mean.toFixed(1)}</span>
   `;
@@ -359,6 +360,27 @@ function stationsWithMeans() {
   return allStations.filter((s) => s.kind === "noise" && s.stats && s.stats.mean != null);
 }
 
+function placeIsVeryLoud(mean, max) {
+  return (mean != null && mean >= 65) || (max != null && max >= 80);
+}
+
+function mitigationForPlace(place) {
+  const name = place || "this place";
+  return [
+    `If you can, go when ${name} is usually calmer — evenings late or early morning on the hour strip.`,
+    "Keep the stop short, and stand back from the kerb if you’re on the street.",
+    "Ear protection helps if you have to stay through a loud hour.",
+    "Pick a quieter nearby pin on the map before you set out.",
+  ];
+}
+
+function mitigationMarkup(place) {
+  const items = mitigationForPlace(place)
+    .map((t) => `<li>${t}</li>`)
+    .join("");
+  return `<div class="mitigation-block"><p class="mitigation-label">What you can do</p><ul>${items}</ul></div>`;
+}
+
 function hotspotStations() {
   const live = stationsWithMeans();
   if (live.length) return live;
@@ -402,6 +424,7 @@ function renderAnomalies() {
       <p class="eyebrow">${item.tag}</p>
       <h3>${item.title}</h3>
       <p>${item.body}</p>
+      ${item.tag === "Loud band" ? mitigationMarkup(item.title) : ""}
     `;
     card.addEventListener("click", () => {
       if (item.station.serial_number) selectStation(item.station.serial_number);
@@ -869,6 +892,7 @@ function showTab(name) {
     setTimeout(() => calRouteMap && calRouteMap.invalidateSize(), 80);
   }
   if (name === "insights") requestPlaceInsights();
+  if (name === "chat") setupChat();
 }
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
@@ -1000,6 +1024,7 @@ function renderCalList() {
         <strong>${ev.name || "Event"}</strong>
         <p>${place}</p>
         ${warn.show ? `<p class="cal-warn ${warn.level}">${warn.text}</p>` : ""}
+        ${db != null && db >= 65 ? mitigationMarkup(place) : ""}
       </span>
       <span class="cal-db">${db == null ? "—" : db.toFixed(0)}<small>${feel.label}</small></span>`;
     btn.addEventListener("click", () => {
@@ -1174,6 +1199,7 @@ function renderCalDetail(row) {
         <span>In plain English</span>
         <p>${plainMeaning(db, place)}</p>
       </div>
+      ${db != null && db >= 65 ? `<div class="cal-fact">${mitigationMarkup(place)}</div>` : ""}
     </div>
     <div class="cal-route">
       <button type="button" class="route-btn" id="quiet-route-btn">Generate quietest route</button>
@@ -1286,7 +1312,10 @@ function paintForecast(data) {
   const placeHtml = places.length
     ? `<h3 class="cal-list-title">Places that are usually louder then</h3>
        <ul class="fc-places">${places.map((p) => `
-         <li><span>${p.location}</span><strong>${Math.round(p.typical_db)} dB</strong></li>`).join("")}</ul>`
+         <li>
+           <span>${p.location}</span><strong>${Math.round(p.typical_db)} dB</strong>
+           ${p.typical_db >= 65 ? mitigationMarkup(p.location) : ""}
+         </li>`).join("")}</ul>`
     : "";
   board.innerHTML = heroHtml + winHtml + hourHtml + placeHtml;
 }
@@ -1435,6 +1464,112 @@ function loadUpcomingEvents() {
   selectedCalId = calendarResults[0] ? calendarResults[0].event.id : null;
   renderCalList();
   if (calendarResults[0]) renderCalDetail(calendarResults[0]);
+}
+
+let chatHistory = [];
+let chatReady = false;
+let chatBusy = false;
+
+function setupChat() {
+  if (chatReady) return;
+  chatReady = true;
+  const log = document.getElementById("chat-log");
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("chat-input");
+  if (log && !log.dataset.seeded) {
+    log.dataset.seeded = "1";
+    appendChat(
+      "assistant",
+      "Ask about a Dublin monitor — usual decibels, or whether you should go. I only know the places on this dashboard."
+    );
+  }
+  document.querySelectorAll("#chat-prompts button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const q = btn.getAttribute("data-q");
+      if (q) sendChat(q);
+    });
+  });
+  if (form) {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const q = (input && input.value) || "";
+      sendChat(q);
+    });
+  }
+}
+
+function appendChat(role, text) {
+  const log = document.getElementById("chat-log");
+  if (!log) return;
+  const el = document.createElement("article");
+  el.className = `chat-bubble ${role}`;
+  const who = document.createElement("p");
+  who.className = "chat-who";
+  who.textContent = role === "user" ? "You" : "Groq";
+  const body = document.createElement("p");
+  body.textContent = text;
+  el.append(who, body);
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+}
+
+function chatStations() {
+  return stationsWithMeans()
+    .slice()
+    .sort((a, b) => (b.stats.mean || 0) - (a.stats.mean || 0))
+    .slice(0, 20)
+    .map((s) => ({
+      location: s.location,
+      mean: s.stats.mean,
+      min: s.stats.min,
+      max: s.stats.max,
+    }));
+}
+
+async function sendChat(raw) {
+  const q = String(raw || "").trim();
+  const input = document.getElementById("chat-input");
+  const send = document.getElementById("chat-send");
+  if (!q || chatBusy) return;
+  chatBusy = true;
+  if (input) input.value = "";
+  if (send) send.disabled = true;
+  appendChat("user", q);
+  chatHistory.push({ role: "user", content: q });
+  const selected =
+    lastReadings && lastReadings.monitor
+      ? {
+          location: lastReadings.monitor.location,
+          mean: lastReadings.stats && lastReadings.stats.mean,
+          min: lastReadings.stats && lastReadings.stats.min,
+          max: lastReadings.stats && lastReadings.stats.max,
+        }
+      : null;
+  try {
+    const res = await fetch("/api/ai/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: q,
+        history: chatHistory.slice(0, -1),
+        stations: chatStations(),
+        selected,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(typeof body.detail === "string" ? body.detail : `Ask failed (${res.status})`);
+    }
+    const reply = body.reply || "I couldn’t form an answer.";
+    appendChat("assistant", reply);
+    chatHistory.push({ role: "assistant", content: reply });
+  } catch (err) {
+    appendChat("assistant", err.message || "Ask failed.");
+  } finally {
+    chatBusy = false;
+    if (send) send.disabled = false;
+    if (input) input.focus();
+  }
 }
 
 loadMonitors().catch((err) => setStatus(err.message));

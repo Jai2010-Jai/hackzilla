@@ -278,3 +278,94 @@ def generate_place_brief(payload: dict[str, Any]) -> dict[str, Any]:
         "high_volume": high,
         "usage": parsed.get("_usage"),
     }
+
+
+def _chat_messages(system: str, messages: list[dict[str, str]], max_tokens: int = 500) -> tuple[str, str, dict[str, Any]]:
+    key = (os.getenv("GROQ_API_KEY") or "").strip()
+    if not key:
+        raise GroqError("GROQ_API_KEY is not set on the server")
+    model = (os.getenv("GROQ_MODEL") or DEFAULT_MODEL).strip()
+    payload_messages = [{"role": "system", "content": system}, *messages]
+    response = requests.post(
+        GROQ_CHAT_URL,
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "temperature": 0.3,
+            "max_completion_tokens": max_tokens,
+            "messages": payload_messages,
+        },
+        timeout=60,
+    )
+    if response.status_code >= 400:
+        raise GroqError(f"Groq request failed ({response.status_code}): {response.text[:400]}")
+    body = response.json()
+    text = str(body["choices"][0]["message"]["content"] or "").strip()
+    if not text:
+        raise GroqError("Groq returned an empty reply")
+    return text, model, body.get("usage") or {}
+
+
+def answer_noise_chat(
+    question: str,
+    stations: list[dict[str, Any]] | None = None,
+    history: list[dict[str, Any]] | None = None,
+    selected: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    q = str(question or "").strip()
+    if len(q) < 2:
+        raise GroqError("Ask a short question about a Dublin place.")
+    if len(q) > 400:
+        q = q[:400]
+    slim_stations = []
+    for row in stations or []:
+        loc = str(row.get("location") or "").strip()
+        if not loc:
+            continue
+        slim_stations.append(
+            {
+                "location": loc,
+                "mean_db": row.get("mean"),
+                "min_db": row.get("min"),
+                "max_db": row.get("max"),
+            }
+        )
+        if len(slim_stations) >= 24:
+            break
+    turns: list[dict[str, str]] = []
+    for item in (history or [])[-8:]:
+        role = item.get("role")
+        content = str(item.get("content") or "").strip()
+        if role not in ("user", "assistant") or not content:
+            continue
+        turns.append({"role": role, "content": content[:800]})
+    turns.append({"role": "user", "content": q})
+    grounded = {
+        "clock": "Europe/Dublin",
+        "stations": slim_stations,
+        "selected_place": selected,
+        "guide": {
+            "low_db": "20–60 quiet to everyday city",
+            "medium_db": "60–80 busy street",
+            "high_db": "80+ very loud",
+            "loud_band": "mean ≥ 65 is loud on this dashboard",
+        },
+    }
+    system = (
+        "You help someone visiting Dublin decide how loud a place usually is, "
+        "and whether they should go. Plain English. Short answers. "
+        "Use only the station list and selected_place in the JSON. "
+        "If they name a place that is not in the list, say you have no monitor there. "
+        "Say 'decibels', not LAeq. Do not invent times, other cities, or legal limits. "
+        "If they ask should I go: give a clear take (go / go but keep it short / skip if you want quiet) "
+        "from the numbers. Add one practical tip if it is loud (≥ 65 dB mean). "
+        "This is a usual pattern, not tomorrow’s exact sound. Reply as chat text, not JSON."
+    )
+    user = q + "\n\nContext JSON:\n" + json.dumps(grounded, ensure_ascii=False)
+    # Put context on the last user turn
+    turns[-1] = {"role": "user", "content": user}
+    text, model, usage = _chat_messages(system, turns, max_tokens=450)
+    return {"reply": text, "model": model, "usage": usage}
