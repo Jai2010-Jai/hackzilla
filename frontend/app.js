@@ -1,3 +1,9 @@
+const API_BASE = String(window.SONITUS_API || "").replace(/\/$/, "");
+
+function apiUrl(path) {
+  return `${API_BASE}${path}`;
+}
+
 const map = L.map("map", { zoomControl: true, scrollWheelZoom: true }).setView([53.35, -6.26], 12);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -626,7 +632,7 @@ async function summarisePlace(data, allowRetry = true) {
     .filter((r) => (r.value != null || r.laeq != null) && r.timestamp)
     .map((r) => ({ timestamp: r.timestamp, value: r.value != null ? r.value : r.laeq, laeq: r.value != null ? r.value : r.laeq }));
   try {
-    const res = await fetch("/api/ai/place", {
+    const res = await fetch(apiUrl("/api/ai/place"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -681,7 +687,7 @@ async function requestPlaceInsights() {
 }
 
 async function loadMonitors() {
-  const data = await fetchJson("/api/monitors", 1);
+  const data = await fetchJson(apiUrl("/api/monitors"), 1);
   allStations = data.monitors.map((m) => ({ ...m, stats: typicalStatsFor(m) }));
   refreshView();
   renderPlaceChips();
@@ -1546,7 +1552,7 @@ async function sendChat(raw) {
         }
       : null;
   try {
-    const res = await fetch("/api/ai/chat", {
+    const res = await fetch(apiUrl("/api/ai/chat"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

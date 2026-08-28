@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 from fastapi import Body, FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -46,6 +47,13 @@ ROOT = Path(__file__).resolve().parent
 FRONTEND = ROOT / "frontend"
 
 app = FastAPI(title="Dublin Noise Intelligence", version="1.0.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET") or "dev-only-change-SESSION_SECRET",
@@ -535,17 +543,32 @@ def calendar_analyze(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     return {"results": results, "notices": [n for n in notices if n]}
 
 
+def _dashboard_page() -> FileResponse:
+    return FileResponse(ROOT / "index.html", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/")
 def landing() -> FileResponse:
+    return _dashboard_page()
+
+
+@app.get("/app")
+def dashboard() -> FileResponse:
+    return _dashboard_page()
+
+
+@app.get("/app/")
+def dashboard_slash() -> RedirectResponse:
+    return RedirectResponse("/", status_code=307)
+
+
+@app.get("/welcome")
+def welcome() -> FileResponse:
     return FileResponse(
         FRONTEND / "landing.html",
         headers={"Cache-Control": "no-store"},
     )
 
 
-@app.get("/app")
-def dashboard() -> FileResponse:
-    return FileResponse(FRONTEND / "index.html")
-
-
 app.mount("/assets", StaticFiles(directory=FRONTEND), name="assets")
+app.mount("/frontend", StaticFiles(directory=FRONTEND), name="frontend_files")
